@@ -1,0 +1,239 @@
+package com.mycompany.inventorymanagementsystem;
+
+import java.util.*;
+
+class Stock {
+    String engineNumber, brand, date, status, purchaseStatus;
+    Stock left, right;
+
+    public Stock(String engineNumber, String brand, String date, String status, String purchaseStatus) {
+        this.engineNumber = engineNumber;
+        this.brand = brand;
+        this.date = date;
+        this.status = status;
+        this.purchaseStatus = purchaseStatus;
+        this.left = this.right = null;
+    }
+}
+
+class InventoryBST {
+    private Stock root;
+    private Stack<Stock> undoStack = new Stack<>();
+    private HashMap<String, Stock> stockHashMap = new HashMap<>();
+
+    // Add stock to the inventory
+    public void addStock() {
+        Scanner scanner = new Scanner(System.in);
+        // Step 1: Prompt for Engine Number
+        System.out.print("Enter Engine Number: ");
+        String engineNumber = scanner.nextLine();
+
+        // Validate if Engine Number exists
+        if (stockHashMap.containsKey(engineNumber)) {
+            System.out.println("Engine Number exists, please enter a different one or return to the menu.");
+            System.out.print("Try again> (Y/N): ");
+            String tryAgain = scanner.nextLine();
+            if ("Y".equalsIgnoreCase(tryAgain)) {
+                addStock();  // Repeat process
+                return;
+            } else {
+                return;  // Return to menu
+            }
+        }
+
+        // Step 2: Enter Brand
+        System.out.print("Enter Brand: ");
+        String brand = scanner.nextLine();
+
+        // Set default values
+        String date = new Date().toString();
+        String status = "New";
+        String purchaseStatus = "On-Hand";
+
+        // Create new stock and add to inventory
+        Stock newStock = new Stock(engineNumber, brand, date, status, purchaseStatus);
+        root = insert(root, newStock);  // Insert into BST
+        stockHashMap.put(engineNumber, newStock);  // Store in HashMap
+        undoStack.push(newStock); // Save to undo stack
+        System.out.println("Stock added successfully.");
+    }
+
+    // Insert stock into BST
+    private Stock insert(Stock root, Stock stock) {
+        if (root == null) return stock;
+        if (stock.engineNumber.compareTo(root.engineNumber) < 0) root.left = insert(root.left, stock);
+        else if (stock.engineNumber.compareTo(root.engineNumber) > 0) root.right = insert(root.right, stock);
+        return root;
+    }
+
+    // Delete stock from inventory
+    public void deleteStock() {
+        Scanner scanner = new Scanner(System.in);
+        System.out.print("Enter Engine Number to Delete: ");
+        String engineNumber = scanner.nextLine();
+
+        // Search for stock with matching engine number
+        Stock stock = stockHashMap.get(engineNumber);
+        if (stock != null) {
+            // Display stock details
+            System.out.println("Engine: " + stock.engineNumber + ", Brand: " + stock.brand + ", Status: " + stock.status);
+
+            // Check if stock is sold and old
+            if ("Sold".equals(stock.status) && "Old".equals(stock.purchaseStatus)) {
+                System.out.print("Are you sure you want to delete this stock? (yes/no): ");
+                String confirmation = scanner.nextLine();
+                if ("yes".equalsIgnoreCase(confirmation)) {
+                    root = delete(root, engineNumber);  // Remove from BST
+                    stockHashMap.remove(engineNumber);  // Remove from HashMap
+                    undoStack.push(stock); // Save for undo
+                    System.out.println("Stock deleted successfully.");
+                } else {
+                    System.out.println("Deletion cancelled.");
+                }
+            } else {
+                if (!"Sold".equals(stock.status)) {
+                    System.out.println("Error: Only sold stock can be deleted.");
+                }
+                if (!"Old".equals(stock.purchaseStatus)) {
+                    System.out.println("Error: Only old stock can be deleted.");
+                }
+            }
+        } else {
+            System.out.println("No stock found with the given engine number. Please enter a valid engine number.");
+        }
+    }
+
+    // Delete stock from BST
+    private Stock delete(Stock root, String engineNumber) {
+        if (root == null) return null;
+        if (engineNumber.compareTo(root.engineNumber) < 0) root.left = delete(root.left, engineNumber);
+        else if (engineNumber.compareTo(root.engineNumber) > 0) root.right = delete(root.right, engineNumber);
+        else {
+            if (root.left == null) return root.right;
+            else if (root.right == null) return root.left;
+            Stock min = findMin(root.right);
+            root.engineNumber = min.engineNumber;
+            root.brand = min.brand;
+            root.date = min.date;
+            root.status = min.status;
+            root.purchaseStatus = min.purchaseStatus;
+            root.right = delete(root.right, min.engineNumber);
+        }
+        return root;
+    }
+
+    // Find minimum stock (for deleting)
+    private Stock findMin(Stock root) {
+        while (root.left != null) root = root.left;
+        return root;
+    }
+
+    // Undo last added stock
+    public void undoLastAddedStock() {
+        if (!undoStack.isEmpty()) {
+            Stock lastStock = undoStack.pop();  // Remove last added stock
+            root = delete(root, lastStock.engineNumber);  // Remove from BST
+            stockHashMap.remove(lastStock.engineNumber);  // Remove from HashMap
+            System.out.println("Undo successful. Removed stock:");
+            System.out.println("Engine: " + lastStock.engineNumber + ", Brand: " + lastStock.brand);
+        } else {
+            System.out.println("No actions to undo.");
+        }
+    }
+
+    // Sort stocks by brand and filter/search
+    public void sortByBrand() {
+        Scanner scanner = new Scanner(System.in);
+        System.out.println("Brand options: Honda, Kawasaki, Kymco, Suzuki, Yamaha, All");
+        System.out.print("Enter your choice: ");
+        String brandChoice = scanner.nextLine();
+
+        List<Stock> filteredList = new ArrayList<>();
+        if ("All".equalsIgnoreCase(brandChoice)) {
+            filteredList = new ArrayList<>(stockHashMap.values());
+        } else {
+            for (Stock stock : stockHashMap.values()) {
+                if (brandChoice.equalsIgnoreCase(stock.brand)) {
+                    filteredList.add(stock);
+                }
+            }
+        }
+
+        // Display filtered list
+        for (Stock stock : filteredList) {
+            System.out.println("Engine: " + stock.engineNumber + ", Brand: " + stock.brand);
+        }
+
+        // Show count of On-hand and Sold
+        int totalOnHand = 0, totalSold = 0;
+        for (Stock stock : filteredList) {
+            if ("On-Hand".equals(stock.purchaseStatus)) totalOnHand++;
+            else if ("Sold".equals(stock.purchaseStatus)) totalSold++;
+        }
+        System.out.println("Total On-hand: " + totalOnHand);
+        System.out.println("Total Sold: " + totalSold);
+
+        // Search for a specific engine number
+        System.out.print("Search for a specific engine number? (yes/no): ");
+        String searchChoice = scanner.nextLine();
+        if ("yes".equalsIgnoreCase(searchChoice)) {
+            System.out.print("Enter engine number: ");
+            String engineNumber = scanner.nextLine();
+            Stock searchResult = stockHashMap.get(engineNumber);
+            if (searchResult != null) {
+                System.out.println("Found: Engine " + searchResult.engineNumber + ", Brand: " + searchResult.brand);
+            } else {
+                System.out.println("No stock found.");
+            }
+        }
+    }
+
+    // Display inventory and summary
+    public void displayInventory() {
+        if (stockHashMap.isEmpty()) {
+            System.out.println("Inventory is empty.");
+            return;
+        }
+
+        // Display all stocks
+        for (Stock stock : stockHashMap.values()) {
+            System.out.println("Engine: " + stock.engineNumber + ", Brand: " + stock.brand + ", Status: " + stock.status + ", Purchase Status: " + stock.purchaseStatus);
+        }
+
+        // Initialize totals
+        int totalOnHand = 0, totalSold = 0;
+        Map<String, Integer> brandCounts = new HashMap<>();
+
+        // Calculate totals and brand counts
+        for (Stock stock : stockHashMap.values()) {
+            if ("On-Hand".equals(stock.purchaseStatus)) totalOnHand++;
+            else if ("Sold".equals(stock.purchaseStatus)) totalSold++;
+
+            brandCounts.put(stock.brand, brandCounts.getOrDefault(stock.brand, 0) + 1);
+        }
+
+        // Display summary
+        System.out.println("Summary:");
+        System.out.println("Total Stocks: " + (totalOnHand + totalSold));
+        System.out.println("On-hand: " + totalOnHand);
+        System.out.println("Sold: " + totalSold);
+
+        // Display brand counts
+        for (Map.Entry<String, Integer> entry : brandCounts.entrySet()) {
+            System.out.println(entry.getKey() + ": " + entry.getValue());
+        }
+    }
+}
+
+public class InventoryManager {
+    public static void main(String[] args) {
+        InventoryBST inventory = new InventoryBST();
+        
+        // Test functionality
+        inventory.addStock();  // Add stock example
+        inventory.deleteStock();  // Delete stock example
+        inventory.undoLastAddedStock();  // Undo example
+        inventory.sortByBrand();  // Sort by brand example
+        inventory.displayInventory();  // Display inventory example
+    }
+}
